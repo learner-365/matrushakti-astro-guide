@@ -39,7 +39,7 @@ export async function calculateChart(input: ChartInput, place: BirthPlace): Prom
     ["Mercury", api.Planet.Mercury], ["Jupiter", api.Planet.Jupiter], ["Venus", api.Planet.Venus],
     ["Saturn", api.Planet.Saturn],
   ] as const;
-  const planets = bodies.map(([name, body]) => {
+  const planets: { name: string; longitude: number; speed: number }[] = bodies.map(([name, body]) => {
     const result = swe.calculatePosition(jdUt, body, flags);
     return { name, longitude: sidereal(result.longitude), speed: result.longitudeSpeed };
   });
