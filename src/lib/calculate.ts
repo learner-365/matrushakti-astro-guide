@@ -1,64 +1,56 @@
-import * as sweph from "sweph";
 import { ChartResult, PLANET_SYMBOLS, RASHIS, houseForRashi, nakshatraDetails, normalizeDegrees, rashiIndex } from "@/lib/astro";
 import { BirthPlace } from "@/lib/geocoder";
 import { instantToUtcParts, localBirthTimeToUtc } from "@/lib/time";
 import { ChartInput } from "@/lib/validation";
 
-const c = sweph.constants;
-const moshierFlags = c.SEFLG_MOSEPH | c.SEFLG_SPEED | c.SEFLG_SIDEREAL;
-let initialized = false;
-
-function initializeEngine(nodeMode: "mean" | "true") {
-  // Moshier is part of the Swiss Ephemeris source and needs no external data files.
-  // The package keeps sidereal mode in native process state, so set it for each
-  // synchronous calculation before using the engine.
-  if (!initialized) {
-    sweph.set_ephe_path(process.env.SWISSEPH_EPHE_PATH || process.cwd());
-    initialized = true;
-  }
-  sweph.set_sid_mode(c.SE_SIDM_LAHIRI, 0, 0);
-  const node = nodeMode === "mean" ? c.SE_MEAN_NODE : c.SE_TRUE_NODE;
-  return node;
+async function getEngine() {
+  const api = await import("@swisseph/browser");
+  const swe = new api.SwissEphemeris();
+  await swe.init();
+  swe.setSiderealMode(api.SiderealMode.Lahiri);
+  return { api, swe };
 }
 
-function getLongitude(jdUt: number, body: number, flags: number) {
-  const result = sweph.calc_ut(jdUt, body, flags);
-  if (result.flag < 0 || !Number.isFinite(result.data[0])) {
-    throw new Error(result.error || "The ephemeris could not calculate this chart.");
-  }
-  return { longitude: normalizeDegrees(result.data[0]), speed: result.data[3] };
-}
+let enginePromise: ReturnType<typeof getEngine> | undefined;
 
-const bodies = [
-  ["Sun", c.SE_SUN], ["Moon", c.SE_MOON], ["Mars", c.SE_MARS],
-  ["Mercury", c.SE_MERCURY], ["Jupiter", c.SE_JUPITER], ["Venus", c.SE_VENUS],
-  ["Saturn", c.SE_SATURN],
-] as const;
-
-export function calculateChart(input: ChartInput, place: BirthPlace): ChartResult {
+export async function calculateChart(input: ChartInput, place: BirthPlace): Promise<ChartResult> {
   const instant = localBirthTimeToUtc(input.birthDate, input.birthTime, place.timezone);
   const utc = instantToUtcParts(instant);
-  const date = new Date(Date.UTC(utc.year, utc.month - 1, utc.day));
-  if (date.getTime() > Date.now()) throw new Error("Birth date cannot be in the future.");
+  const utcDate = new Date(instant.toString());
+  if (utcDate.getTime() > Date.now()) throw new Error("Birth date cannot be in the future.");
 
-  const jdResult = sweph.utc_to_jd(utc.year, utc.month, utc.day, utc.hour, utc.minute, utc.second, c.SE_GREG_CAL);
-  if (jdResult.flag !== c.OK) throw new Error(jdResult.error || "Could not convert the birth time to Julian Day.");
-  const jdUt = jdResult.data[1];
+  enginePromise ??= getEngine();
+  const { api, swe } = await enginePromise;
+  const jdUt = swe.dateToJulianDay(utcDate, api.CalendarType.Gregorian);
+  const ayanamsa = swe.getAyanamsa(jdUt);
+  const sidereal = (longitude: number) => normalizeDegrees(longitude - ayanamsa);
+  const flags = api.CalculationFlag.MoshierEphemeris | api.CalculationFlag.Speed;
 
-  const nodeBody = initializeEngine(input.nodeMode);
-  const houses = sweph.houses_ex(jdUt, c.SEFLG_SIDEREAL, place.latitude, place.longitude, "W");
-  if (houses.flag !== c.OK || !houses.data.points || !Number.isFinite(houses.data.points[0])) {
+  // calculateHouses exposes a tropical Ascendant, so convert it to Lahiri sidereal.
+  const houseData = swe.calculateHouses(jdUt, place.latitude, place.longitude, api.HouseSystem.WholeSign);
+  if (!Number.isFinite(houseData.ascendant)) {
     throw new Error("The Ascendant could not be calculated for this place and time.");
   }
-  const ascendantLongitude = normalizeDegrees(houses.data.points[0]);
+  const ascendantLongitude = sidereal(houseData.ascendant);
   const ascendantSign = rashiIndex(ascendantLongitude);
-  const planets: { name: string; longitude: number; speed: number }[] = bodies.map(([name, body]) => {
-    const calculated = getLongitude(jdUt, body, moshierFlags);
-    return { name, ...calculated };
+
+  const bodies = [
+    ["Sun", api.Planet.Sun], ["Moon", api.Planet.Moon], ["Mars", api.Planet.Mars],
+    ["Mercury", api.Planet.Mercury], ["Jupiter", api.Planet.Jupiter], ["Venus", api.Planet.Venus],
+    ["Saturn", api.Planet.Saturn],
+  ] as const;
+  const planets = bodies.map(([name, body]) => {
+    const result = swe.calculatePosition(jdUt, body, flags);
+    return { name, longitude: sidereal(result.longitude), speed: result.longitudeSpeed };
   });
-  const rahu = getLongitude(jdUt, nodeBody, moshierFlags);
-  planets.push({ name: "Rahu", ...rahu });
-  planets.push({ name: "Ketu", longitude: normalizeDegrees(rahu.longitude + 180), speed: rahu.speed });
+  const node = swe.calculatePosition(
+    jdUt,
+    input.nodeMode === "mean" ? api.LunarPoint.MeanNode : api.LunarPoint.TrueNode,
+    flags
+  );
+  const rahu = sidereal(node.longitude);
+  planets.push({ name: "Rahu", longitude: rahu, speed: node.longitudeSpeed });
+  planets.push({ name: "Ketu", longitude: normalizeDegrees(rahu + 180), speed: node.longitudeSpeed });
 
   return {
     birth: {
@@ -106,4 +98,3 @@ export function calculateChart(input: ChartInput, place: BirthPlace): ChartResul
     calculatedAt: new Date().toISOString(),
   };
 }
-

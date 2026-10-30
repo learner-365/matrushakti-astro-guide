@@ -2,6 +2,9 @@
 "use client";
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
+import Link from "next/link";
+import { calculateChart } from "@/lib/calculate";
+import { searchBirthPlaces } from "@/lib/geocoder";
 import { ArrowDown, ArrowRight, Check, ChevronDown, ChevronLeft, ChevronRight, Clock3, Download, Globe2, LoaderCircle, MapPin, Menu, MoonStar, Printer, ShieldCheck, Sparkles, Star, Sun, X } from "lucide-react";
 import { ChartResult, formatDMS, RASHIS, RASHI_ENGLISH } from "@/lib/astro";
 import { BirthPlace } from "@/lib/geocoder";
@@ -69,11 +72,9 @@ export default function HomePage() {
         // The provider accepts a location plus one country qualifier. Match
         // optional state and district details against returned place data.
         const query = [placeQuery.trim(), countryQuery.trim()].filter(Boolean).join(", ");
-        const response = await fetch(`/api/geocode?q=${encodeURIComponent(query)}`, { signal: controller.signal });
-        const body = await response.json();
-        if (!response.ok) throw new Error(body.error || "Place search failed.");
+        const places = await searchBirthPlaces(query, "en", controller.signal);
         const sameArea = (actual: string, requested: string) => !requested.trim() || actual.toLocaleLowerCase().includes(requested.trim().toLocaleLowerCase());
-        const countryMatches = (body.places ?? []).filter((place: BirthPlace) =>
+        const countryMatches = places.filter((place: BirthPlace) =>
           sameArea(place.country, countryQuery) || place.countryCode.toLocaleLowerCase() === countryQuery.trim().toLocaleLowerCase()
         );
         let candidates = countryMatches;
@@ -127,14 +128,8 @@ export default function HomePage() {
     }
     setBusy(true);
     try {
-      const response = await fetch("/api/kundli", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: name.trim(), birthDate, birthTime, timeAccuracy: accuracy, placeId: selectedPlace.id, nodeMode }),
-      });
-      const body = await response.json();
-      if (!response.ok) throw new Error(body.error || "We couldn't calculate this chart. Check your details and try again.");
-      setChart(body.chart as ChartResult);
+      const result = await calculateChart({ name: name.trim(), birthDate, birthTime, timeAccuracy: accuracy as "exact" | "approximate", placeId: selectedPlace.id, nodeMode }, selectedPlace);
+      setChart(result);
       setStyle("north");
       window.setTimeout(() => document.getElementById("kundli-results")?.scrollIntoView({ behavior: "smooth", block: "start" }), 60);
     } catch (error) {
@@ -168,7 +163,8 @@ export default function HomePage() {
 
   function printReport() { window.print(); }
 
-  const today = new Date().toISOString().slice(0, 10);
+  const [today, setToday] = useState("");
+  useEffect(() => { setToday(new Date().toISOString().slice(0, 10)); }, []);
   const localizedPlanets: Record<string, Record<string, string>> = {
     Hindi: { Sun: "सूर्य", Moon: "चंद्र", Mars: "मंगल", Mercury: "बुध", Jupiter: "गुरु", Venus: "शुक्र", Saturn: "शनि", Rahu: "राहु", Ketu: "केतु" },
     Odia: { Sun: "ସୂର୍ଯ୍ୟ", Moon: "ଚନ୍ଦ୍ର", Mars: "ମଙ୍ଗଳ", Mercury: "ବୁଧ", Jupiter: "ଗୁରୁ", Venus: "ଶୁକ୍ର", Saturn: "ଶନି", Rahu: "ରାହୁ", Ketu: "କେତୁ" },
@@ -183,7 +179,7 @@ export default function HomePage() {
       <div className="header-inner"><Logo />
         <button className="mobile-menu" onClick={() => setNavOpen(!navOpen)} aria-label={navOpen ? "Close navigation" : "Open navigation"}>{navOpen ? <X /> : <Menu />}</button>
         <nav className={navOpen ? "main-nav nav-open" : "main-nav"} aria-label="Main navigation">
-          <a href="#generator" onClick={() => setNavOpen(false)}>Generate Kundli</a><a href="#styles" onClick={() => setNavOpen(false)}>Chart styles</a><a href="#how-it-works" onClick={() => setNavOpen(false)}>How it works</a><a href="/about">About</a>
+          <a href="#generator" onClick={() => setNavOpen(false)}>Generate Kundli</a><a href="#styles" onClick={() => setNavOpen(false)}>Chart styles</a><a href="#how-it-works" onClick={() => setNavOpen(false)}>How it works</a><Link href="/about">About</Link>
         </nav>
         <a className="header-cta" href="#generator">Start your chart <ArrowRight size={15} /></a>
       </div>
@@ -369,7 +365,7 @@ export default function HomePage() {
     </div></section>
 
     <section className="closing-cta"><div className="closing-star">✳</div><div><span className="eyebrow">YOUR SKY, YOUR STORY</span><h2>Begin with the moment <em>you were born.</em></h2><p>Your birth details are all you need to get started.</p></div><a href="#generator" className="button button-gold">Generate my Kundli <ArrowRight size={16}/></a></section>
-    <footer className="site-footer"><div className="footer-top"><Logo/><p>Traditional Jyotish chart formats, with calculation settings in view.</p><nav aria-label="Footer navigation"><a href="/about">About</a><a href="/privacy">Privacy</a><a href="/terms">Terms & disclaimer</a></nav></div><div className="footer-bottom"><span>© {new Date().getFullYear()} Matrushakti Astro Guide</span><span>Ancient Wisdom for a Brighter Tomorrow</span><a href="#top">Back to top ↑</a></div></footer>
+    <footer className="site-footer"><div className="footer-top"><Logo/><p>Traditional Jyotish chart formats, with calculation settings in view.</p><nav aria-label="Footer navigation"><a href="/about">About</a><Link href="/privacy">Privacy</Link><Link href="/terms">Terms & disclaimer</Link></nav></div><div className="footer-bottom"><span>© {new Date().getFullYear()} Matrushakti Astro Guide</span><span>Ancient Wisdom for a Brighter Tomorrow</span><a href="#top">Back to top ↑</a></div></footer>
   </main>;
 }
 

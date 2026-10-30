@@ -1,35 +1,31 @@
-# Setup and deployment
+# GitHub Pages deployment
 
-## Runtime
+## How it works
 
-1. Install Node.js 20.9+ and pnpm 10+.
-2. Copy `.env.example` to `.env.local` if configuring the commercial geocoder.
-3. Run `pnpm install`, `pnpm test`, `pnpm exec tsc --noEmit`, then `pnpm build`.
-4. Deploy as a Next.js Node.js server. Do not deploy calculation routes to an Edge runtime; `sweph` is a native Node N-API binding.
-5. Set HTTPS at the platform or reverse proxy. Restrict and rotate provider secrets. Avoid logging API request bodies.
+GitHub Pages serves static files only. This project exports Next.js pages as HTML and runs chart calculations in the visitor's browser with @swisseph/browser WebAssembly. Place searches go directly from the browser to Open-Meteo Geocoding. There is no calculation server, API key, database or account system.
 
-## Geocoding provider
+The project site URL for the current repository is https://learner-365.github.io/matrushakti-astro-guide/. A user site at https://kundli.github.io/ would require a repository owned by a GitHub account or organization named kundli.
 
-The default host, `geocoding-api.open-meteo.com`, is for evaluation and non-commercial use under Open-Meteo's terms. Place data is based on GeoNames and requires attribution; the app displays the provider/data attribution and explains that searches leave the app.
+## Deploy
 
-For commercial use, obtain an appropriate Open-Meteo subscription and set `OPEN_METEO_API_KEY`. The code then uses `customer-geocoding-api.open-meteo.com` and sends the key only from the server. See the [official Geocoding API](https://open-meteo.com/en/docs/geocoding-api), [terms](https://open-meteo.com/en/terms) and [pricing](https://open-meteo.com/en/pricing). Replace the provider adapter if its coverage, retention terms, service level or licensing do not fit the product.
+1. In the GitHub repository, open Settings → Pages and select GitHub Actions as the source if it is not already enabled.
+2. Push to the main branch or run the Deploy to GitHub Pages workflow manually.
+3. Wait for the workflow to complete, then open the URL above.
 
-## Swiss Ephemeris licensing and ephemeris files
+The workflow sets NEXT_PUBLIC_BASE_PATH to /matrushakti-astro-guide, runs a static Next.js export, and publishes the generated out folder. To move the project to a different repository name or account, update that workflow variable and this document.
 
-`sweph` and Swiss Ephemeris use a dual licensing arrangement. This repository is marked AGPL-3.0-only because it uses the AGPL option. If distributing or operating it, comply with AGPL terms for the full combined software, or obtain the Swiss Ephemeris Professional License from Astrodienst and review the binding's licensing conditions with counsel. Do not assume the professional license has been obtained.
+## Geocoding
 
-This release uses the Moshier calculation flag and requires no external `.se1` files. It does not silently switch to file-backed Swiss Ephemeris. To make a future file-backed mode, first choose a compatible license, obtain legally usable ephemeris data files for the target dates, provide their path through a server-only `SWISSEPH_EPHE_PATH`, select `SEFLG_SWIEPH`, and add explicit checks that the requested dates are covered. Do not put ephemeris files or secrets in browser bundles.
+The default Open-Meteo Geocoding endpoint is intended for non-commercial use. This public browser call does not send a private API key. For commercial operation, choose a provider and integration whose terms fit the service; never put a secret key in a public browser bundle. Place data is based on GeoNames and requires attribution. Review the [official Geocoding API](https://open-meteo.com/en/docs/geocoding-api) and [terms](https://open-meteo.com/en/terms).
 
-## Scaling and privacy
+## Swiss Ephemeris license
 
-There is no database, account system, chart persistence or client analytics. Chart inputs exist in the request and response and in the current page state. Review hosting request logs, backups, error reporting, CDN behavior, privacy notices and deletion handling before a public launch.
+This release uses the AGPL-3.0 route for Swiss Ephemeris and the browser binding. The combined source is published under AGPL-3.0-only. Keep the license and source notices with redistributed copies, and comply with AGPL terms when operating a modified network service. Astrodienst also offers a professional license; no professional license has been obtained for this project.
 
-The in-memory limiter is per process and resets on restart. For multi-instance hosting, move throttling to a shared service and trust forwarded IP headers only from a configured reverse proxy. Add request-body size limits, structured but redacted logs, monitoring and an appropriate timeout for the geocoder.
+Moshier mode uses the analytical ephemeris included in the library and does not need external .se1 data files. The project does not silently fall back to file-based Swiss Ephemeris.
 
-## Verification still needed before release
+## Privacy and accuracy
 
-- Independent numerical reference charts and documented tolerances for each supported time/setting class.
-- PDF review in desktop and mobile browsers, including Unicode names and A4 pagination.
-- Visual review on Android/iOS and an accessibility audit.
-- Deployment-specific license, privacy, geocoder, security and availability review.
+Chart input is processed in browser memory and is not sent to a calculation API or intentionally stored by the app. Place search terms are sent to Open-Meteo. Hosting and network services can still log ordinary requests; review the provider's current behavior and the Privacy page.
 
+This release has not been independently numerically validated against a reference chart set. Before claiming professional accuracy, compare supported settings and date ranges with authoritative charts and document tolerances. Moshier mode is not the file-based Swiss Ephemeris mode.

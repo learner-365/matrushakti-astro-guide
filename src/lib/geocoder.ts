@@ -1,4 +1,3 @@
-
 export type BirthPlace = {
   id: number;
   name: string;
@@ -49,34 +48,15 @@ function parsePlace(item: OpenMeteoPlace): BirthPlace {
   };
 }
 
-export async function searchBirthPlaces(query: string, language = "en"): Promise<BirthPlace[]> {
-  const apiKey = process.env.OPEN_METEO_API_KEY;
-  const host = apiKey ? "customer-geocoding-api.open-meteo.com" : "geocoding-api.open-meteo.com";
-  const url = new URL(`https://${host}/v1/search`);
+export async function searchBirthPlaces(query: string, language = "en", signal?: AbortSignal): Promise<BirthPlace[]> {
+  const url = new URL("https://geocoding-api.open-meteo.com/v1/search");
   url.searchParams.set("name", query.trim());
-  // Retrieve enough same-country matches for the optional state/district
-  // filters in the client to find the user's location.
   url.searchParams.set("count", "100");
   url.searchParams.set("language", language);
   url.searchParams.set("format", "json");
-  if (apiKey) url.searchParams.set("apikey", apiKey);
 
-  const response = await fetch(url, { next: { revalidate: 86_400 } });
+  const response = await fetch(url, { signal });
   if (!response.ok) throw new Error("The place search service is temporarily unavailable. Please retry.");
   const body = await response.json() as { results?: OpenMeteoPlace[]; error?: boolean };
   return (body.results ?? []).map(parsePlace);
 }
-
-export async function resolveBirthPlace(id: number): Promise<BirthPlace> {
-  const apiKey = process.env.OPEN_METEO_API_KEY;
-  const host = apiKey ? "customer-geocoding-api.open-meteo.com" : "geocoding-api.open-meteo.com";
-  const url = new URL(`https://${host}/v1/get`);
-  url.searchParams.set("id", String(id));
-  if (apiKey) url.searchParams.set("apikey", apiKey);
-  const response = await fetch(url, { next: { revalidate: 86_400 } });
-  if (!response.ok) throw new Error("The selected place could not be verified. Search again and choose another result.");
-  const item = await response.json() as OpenMeteoPlace;
-  if (item.id !== id) throw new Error("The selected place could not be verified. Choose a result from the list.");
-  return parsePlace(item);
-}
-
