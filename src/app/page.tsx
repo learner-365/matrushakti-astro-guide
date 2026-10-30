@@ -365,7 +365,7 @@ export default function HomePage() {
     </div></section>
 
     <section className="closing-cta"><div className="closing-star">✳</div><div><span className="eyebrow">YOUR SKY, YOUR STORY</span><h2>Begin with the moment <em>you were born.</em></h2><p>Your birth details are all you need to get started.</p></div><a href="#generator" className="button button-gold">Generate my Kundli <ArrowRight size={16}/></a></section>
-    <footer className="site-footer"><div className="footer-top"><Logo/><p>Traditional Jyotish chart formats, with calculation settings in view.</p><nav aria-label="Footer navigation"><a href="/about">About</a><Link href="/privacy">Privacy</Link><Link href="/terms">Terms & disclaimer</Link></nav></div><div className="footer-bottom"><span>© {new Date().getFullYear()} Matrushakti Astro Guide</span><span>Ancient Wisdom for a Brighter Tomorrow</span><a href="#top">Back to top ↑</a></div></footer>
+    <footer className="site-footer"><div className="footer-top"><Logo/><p>Traditional Jyotish chart formats, with calculation settings in view.</p><nav aria-label="Footer navigation"><Link href="/about">About</Link><Link href="/privacy">Privacy</Link><Link href="/terms">Terms & disclaimer</Link></nav></div><div className="footer-bottom"><span>© {new Date().getFullYear()} Matrushakti Astro Guide</span><span>Ancient Wisdom for a Brighter Tomorrow</span><a href="#top">Back to top ↑</a></div></footer>
   </main>;
 }
 
